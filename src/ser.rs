@@ -466,29 +466,19 @@ fn char_test() -> Result<()> {
 
 pub fn smallest_le_bytes<T: Into<i128> + Copy>(value: T) -> Vec<u8> {
     let v: i128 = value.into();
+    let bytes = v.to_le_bytes();
+    let mut end = bytes.len();
+    // Remove trailing zeros for positive, trailing 0xFF for negative
     if v >= 0 {
-        if v <= u8::MAX as i128 {
-            (v as u8).to_le_bytes().to_vec()
-        } else if v <= u16::MAX as i128 {
-            (v as u16).to_le_bytes().to_vec()
-        } else if v <= u32::MAX as i128 {
-            (v as u32).to_le_bytes().to_vec()
-        } else if v <= u64::MAX as i128 {
-            (v as u64).to_le_bytes().to_vec()
-        } else {
-            (v as u128).to_le_bytes().to_vec()
+        while end > 1 && bytes[end - 1] == 0 {
+            end -= 1;
         }
-    } else if v >= i8::MIN as i128 && v <= i8::MAX as i128 {
-        (v as i8).to_le_bytes().to_vec()
-    } else if v >= i16::MIN as i128 && v <= i16::MAX as i128 {
-        (v as i16).to_le_bytes().to_vec()
-    } else if v >= i32::MIN as i128 && v <= i32::MAX as i128 {
-        (v as i32).to_le_bytes().to_vec()
-    } else if v >= i64::MIN as i128 && v <= i64::MAX as i128 {
-        (v as i64).to_le_bytes().to_vec()
     } else {
-        v.to_le_bytes().to_vec()
+        while end > 1 && bytes[end - 1] == 0xFF {
+            end -= 1;
+        }
     }
+    bytes[..end].to_vec()
 }
 
 #[test]
