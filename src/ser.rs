@@ -51,28 +51,31 @@ impl ser::Serializer for &mut Serializer {
     }
 
     fn serialize_u16(self, v: u16) -> Result<Self::Ok> {
-        let bytes = v.to_le_bytes();
-        let mut new_bytes = Vec::with_capacity(bytes.len());
-        for i in bytes {
-            if i != 0x00 {
-                new_bytes.push(i);
-            } else {
-                break;
-            }
+        let bytes = v.to_be_bytes();
+        let new: Vec<u8> = bytes.into_iter().skip_while(|x| *x == 0).collect();
+        if new.len() != 1 || (1..bytes.len() as u8 / 8).contains(&new[0]) {
+            self.inner.write_all(&[new.len() as u8])?;
         }
-
-        if new_bytes.len() == 1 && new_bytes[0] != 0 && new_bytes[0] as usize > bytes.len() {
-            self.inner.write_all(&new_bytes)?;
-        } else {
-            self.inner.write_all(&[new_bytes.len() as u8])?;
-            self.inner.write_all(&new_bytes)?;
-        }
+        self.inner.write_all(&new)?;
 
         Ok(())
     }
 
     fn serialize_i16(self, v: i16) -> Result<Self::Ok> {
-        self.inner.write_all(&smallest_le_bytes(v))?;
+        let int = v as i64;
+        let bytes = v.to_le_bytes();
+        let mut slice = &bytes[..];
+        for i in (1..=bytes.len()).rev() {
+            let new = &bytes[..i];
+            let new_int = sign_extend_le(new);
+            if new_int != int {
+                break;
+            } else {
+                slice = new;
+            }
+        }
+        panic!("result: {slice:?}");
+        
         Ok(())
     }
 
@@ -449,6 +452,8 @@ impl ser::SerializeTupleVariant for &mut Serializer {
 
 #[test]
 fn char_test() -> Result<()> {
+    to_bytes(&-3i16)?;
+
     let c = to_bytes(&'c')?;
     let null = to_bytes(&'\0')?;
     let one = to_bytes(&'\x01')?;
@@ -464,26 +469,25 @@ fn char_test() -> Result<()> {
     Ok(())
 }
 
-pub fn smallest_le_bytes<T: Into<i128> + Copy>(value: T) -> Vec<u8> {
-    let v: i128 = value.into();
-    let bytes = v.to_le_bytes();
-    let mut end = bytes.len();
-    // Remove trailing zeros for positive, trailing 0xFF for negative
-    if v >= 0 {
-        while end > 1 && bytes[end - 1] == 0 {
-            end -= 1;
-        }
-    } else {
-        while end > 1 && bytes[end - 1] == 0xFF {
-            end -= 1;
-        }
+fn sign_extend_le(bytes: &[u8]) -> i64 {
+    if bytes.len() > 8 || bytes.is_empty() {
+        panic!("invalid bytes length {}", bytes.len());
     }
-    bytes[..end].to_vec()
+    if bytes.len() == 8 {
+        return i64::from_le_bytes(bytes.try_into().unwrap());
+    }
+
+    let sign = bytes.last().unwrap() & 0x80 != 0; // true if negative
+    let sign_byte = if sign { 0xffu8 } else { 0x00u8 };
+
+    let mut vec: Vec<u8> = bytes.to_vec();
+    vec.extend(vec![sign_byte; 8 - bytes.len()]);
+
+    i64::from_le_bytes(vec.try_into().unwrap())
 }
 
 #[test]
-fn smallest_test() {
-    assert_eq!(smallest_le_bytes(5u32), (5u8).to_le_bytes());
-    assert_eq!(smallest_le_bytes(-1i128), (-1i8).to_le_bytes());
-    assert_eq!(smallest_le_bytes(-256i32), (-256i16).to_le_bytes());
+fn sign_extend_test() {
+    assert_eq!(sign_extend_le((5u8).to_le_bytes().as_slice()), 5);
+    assert_eq!(sign_extend_le((-25i8).to_le_bytes().as_slice()), -25);
 }
