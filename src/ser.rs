@@ -52,10 +52,11 @@ impl ser::Serializer for &mut Serializer {
 
     fn serialize_u16(self, v: u16) -> Result<Self::Ok> {
         let bytes = v.to_be_bytes();
-        let new: Vec<u8> = bytes.into_iter().skip_while(|x| *x == 0).collect();
+        let mut new: Vec<u8> = bytes.into_iter().skip_while(|x| *x == 0).collect();
         if new.len() != 1 || (1..bytes.len() as u8 / 8).contains(&new[0]) {
             self.inner.write_all(&[new.len() as u8])?;
         }
+        new.reverse();
         self.inner.write_all(&new)?;
 
         Ok(())
@@ -74,7 +75,12 @@ impl ser::Serializer for &mut Serializer {
                 slice = new;
             }
         }
-        panic!("result: {slice:?}");
+
+        if slice.len() != 1 || (1..bytes.len() as u8 / 8).contains(&slice[0]) {
+            self.inner.write_all(&[slice.len() as u8])?;
+        }
+        self.inner.write_all(slice)?;
+
         
         Ok(())
     }
@@ -436,7 +442,6 @@ impl ser::SerializeTupleStruct for &mut Serializer {
 
 impl ser::SerializeTupleVariant for &mut Serializer {
     type Ok = ();
-
     type Error = Error;
 
     fn serialize_field<T>(&mut self, value: &T) -> Result<Self::Ok>
@@ -452,20 +457,25 @@ impl ser::SerializeTupleVariant for &mut Serializer {
 
 #[test]
 fn char_test() -> Result<()> {
-    to_bytes(&-3i16)?;
+    assert_eq!(to_bytes(&'c')?, b"c");
+    assert_eq!(to_bytes(&'\0')?, b"\0");
+    assert_eq!(to_bytes(&'\x01')?, b"\x01\x01");
+    assert_eq!(to_bytes(&'ß')?, "\x02ß".as_bytes());
+    assert_eq!(to_bytes(&'ℝ')?, "\x03ℝ".as_bytes());
+    assert_eq!(to_bytes(&'💣')?, "\x04💣".as_bytes());
+    Ok(())
+}
 
-    let c = to_bytes(&'c')?;
-    let null = to_bytes(&'\0')?;
-    let one = to_bytes(&'\x01')?;
-    let two_byte = to_bytes(&'ß')?;
-    let three_byte = to_bytes(&'ℝ')?;
-    let four_byte = to_bytes(&'💣')?;
-    assert_eq!(c, b"c");
-    assert_eq!(null, b"\0");
-    assert_eq!(one, b"\x01\x01");
-    assert_eq!(two_byte, "\x02ß".as_bytes());
-    assert_eq!(three_byte, "\x03ℝ".as_bytes());
-    assert_eq!(four_byte, "\x04💣".as_bytes());
+#[test]
+fn integer_test() -> Result<()> {
+    assert_eq!(to_bytes(&5u16)?, [0x05]);
+    assert_eq!(to_bytes(&16u16)?, [0x10]);
+    assert_eq!(to_bytes(&256u16)?, [0x02, 0x00, 0x01]);
+    assert_eq!(to_bytes(&-5i16)?, [0xfb]);
+    assert_eq!(to_bytes(&-16i16)?, [0xf0]);
+    assert_eq!(to_bytes(&256i16)?, [0x02, 0x00, 0x01]);
+    assert_eq!(to_bytes(&-256i16)?, [0x02, 0x00, 0xff]);
+
     Ok(())
 }
 
