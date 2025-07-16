@@ -63,25 +63,21 @@ impl ser::Serializer for &mut Serializer {
     }
 
     fn serialize_i16(self, v: i16) -> Result<Self::Ok> {
-        let int = v as i64;
         let bytes = v.to_le_bytes();
-        let mut slice = &bytes[..];
-        for i in (1..=bytes.len()).rev() {
-            let new = &bytes[..i];
-            let new_int = sign_extend_le(new);
-            if new_int != int {
-                break;
-            } else {
-                slice = new;
-            }
+        let mut len = bytes.len();
+
+        // Find minimal byte length that preserves sign and value
+        while len > 1 && sign_extend_le(&bytes[..len - 1]) == v as i64 {
+            len -= 1;
         }
 
-        if slice.len() != 1 || (1..bytes.len() as u8 / 8).contains(&slice[0]) {
-            self.inner.write_all(&[slice.len() as u8])?;
-        }
-        self.inner.write_all(slice)?;
+        let new = &bytes[..len];
 
-        
+        if new.len() != 1 || (1..bytes.len() as u8 / 8).contains(&new[0]) {
+            self.inner.write_all(&[new.len() as u8])?;
+        }
+        self.inner.write_all(new)?;
+
         Ok(())
     }
 
