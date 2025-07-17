@@ -24,17 +24,11 @@ impl ser::Serializer for &mut Serializer {
     type Error = Error;
 
     type SerializeSeq = Self;
-    
     type SerializeTuple = Self;
-    
     type SerializeTupleStruct = Self;
-    
     type SerializeTupleVariant = Self;
-    
     type SerializeMap = Self;
-    
     type SerializeStruct = Self;
-    
     type SerializeStructVariant = Self;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok> {
