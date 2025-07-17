@@ -15,6 +15,8 @@ pub fn to_bytes<T: Serialize>(value: &T) -> Result<Vec<u8>> {
 #[derive(Default)]
 pub struct Serializer {
     inner: Vec<u8>,
+    temp_bytes: Vec<u8>,
+    temp_len: usize,
 }
 
 impl ser::Serializer for &mut Serializer {
@@ -220,33 +222,35 @@ impl ser::Serializer for &mut Serializer {
     }
     
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
-        let length = 0usize;
-        let length_length = ((length as f32 + 1.0).log2().ceil() / 8.0).ceil() as usize;
-        let length_bytes = &length.to_le_bytes()[..length_length];
-        panic!("bytes: {length_bytes:02X?}. length_length: {length_length}. length: {length}");
-        Ok(())
+        v.as_bytes().serialize(self)
     }
     
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok> {
-        todo!()
+        v.len().serialize(self);
+        self.inner.write_all(v);
+        Ok(())
     }
     
     fn serialize_none(self) -> Result<Self::Ok> {
-        todo!()
+        false.serialize(self)
     }
     
     fn serialize_some<T>(self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + serde::Serialize {
-        todo!()
+        let bytes = to_bytes(value);
+        if bytes.starts_with(&[0x00]) || bytes.starts_with(&[0x01]) {
+            true.serialize(self);
+        }
+        value.serialize(self)
     }
     
     fn serialize_unit(self) -> Result<Self::Ok> {
-        todo!()
+        Ok(())
     }
     
     fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok> {
-        todo!()
+        Ok(())
     }
     
     fn serialize_unit_variant(
@@ -255,7 +259,7 @@ impl ser::Serializer for &mut Serializer {
         variant_index: u32,
         variant: &'static str,
     ) -> Result<Self::Ok> {
-        todo!()
+        variant_index.serialize(self)
     }
     
     fn serialize_newtype_struct<T>(
@@ -265,7 +269,7 @@ impl ser::Serializer for &mut Serializer {
     ) -> Result<Self::Ok>
     where
         T: ?Sized + serde::Serialize {
-        todo!()
+        value.serialize(self)
     }
     
     fn serialize_newtype_variant<T>(
@@ -277,15 +281,20 @@ impl ser::Serializer for &mut Serializer {
     ) -> Result<Self::Ok>
     where
         T: ?Sized + serde::Serialize {
-        todo!()
+        variant_index.serialize(self)?;
+        value.serialize(self)
     }
     
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
-        todo!()
+        self.temp_bytes.clear();
+        self.temp_len = 0;
+        Ok(self)
     }
     
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple> {
-        todo!()
+        self.temp_bytes.clear();
+        self.temp_len = 0;
+        Ok(self)
     }
     
     fn serialize_tuple_struct(
@@ -293,7 +302,9 @@ impl ser::Serializer for &mut Serializer {
         name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleStruct> {
-        todo!()
+        self.temp_bytes.clear();
+        self.temp_len = 0;
+        Ok(self)
     }
     
     fn serialize_tuple_variant(
@@ -303,11 +314,16 @@ impl ser::Serializer for &mut Serializer {
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        todo!()
+        variant_index.serialize(self)?;
+        self.temp_bytes.clear();
+        self.temp_len = 0;
+        Ok(self)
     }
     
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
-        todo!()
+        self.temp_bytes.clear();
+        self.temp_len = 0;
+        Ok(self)
     }
     
     fn serialize_struct(
@@ -315,7 +331,9 @@ impl ser::Serializer for &mut Serializer {
         name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStruct> {
-        todo!()
+        self.temp_bytes.clear();
+        self.temp_len = 0;
+        Ok(self)
     }
     
     fn serialize_struct_variant(
@@ -325,125 +343,148 @@ impl ser::Serializer for &mut Serializer {
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        todo!()
+        variant_index.serialize(self);
+        self.temp_bytes.clear();
+        self.temp_len = 0;
+        Ok(self)
     }
 }
 
 impl ser::SerializeMap for &mut Serializer {
     type Ok = ();
-
     type Error = Error;
 
     fn serialize_key<T>(&mut self, key: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        todo!()
+        let bytes = to_bytes(key)?;
+        self.temp_len += 1;
+        self.temp_bytes.write_all(&bytes)?;
+        Ok(())
     }
 
     fn serialize_value<T>(&mut self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        todo!()
+        let bytes = to_bytes(value)?;
+        self.temp_bytes.write_all(&bytes)?;
+        Ok(())
     }
 
     fn end(self) -> Result<Self::Ok> {
-        todo!()
+        self.temp_len.serialize(self)?;
+        self.inner.write_all(&self.temp_bytes)?;
+        Ok(())
     }
 }
 
 impl ser::SerializeSeq for &mut Serializer {
     type Ok = ();
-
     type Error = Error;
 
     fn serialize_element<T>(&mut self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        todo!()
+        let bytes = to_bytes(value)?;
+        self.temp_len += 1;
+        self.temp_bytes.write_all(&bytes);
+        Ok(())
     }
 
     fn end(self) -> Result<Self::Ok> {
-        todo!()
+        self.temp_len.serialize(self)?;
+        self.inner.write_all(&self.temp_bytes)?;
+        Ok(())
     }
 }
 
 impl ser::SerializeStruct for &mut Serializer {
     type Ok = ();
-
     type Error = Error;
 
     fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        todo!()
+        let bytes = to_bytes(value)?;
+        self.temp_bytes.write_all(&bytes);
+        Ok(())
     }
 
     fn end(self) -> Result<Self::Ok> {
-        todo!()
+        self.inner.write_all(&self.temp_bytes)?;
+        Ok(())
     }
 }
 
 impl ser::SerializeStructVariant for &mut Serializer {
     type Ok = ();
-
     type Error = Error;
 
     fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        todo!()
+        let bytes = to_bytes(value)?;
+        self.temp_bytes.write_all(&bytes);
+        Ok(())
     }
 
     fn end(self) -> Result<Self::Ok> {
-        todo!()
+        self.inner.write_all(&self.temp_bytes)?;
+        Ok(())
     }
 }
 
 impl ser::SerializeTuple for &mut Serializer {
     type Ok = ();
-
     type Error = Error;
 
     fn serialize_element<T>(&mut self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        todo!()
+        let bytes = to_bytes(value)?;
+        self.temp_bytes.write_all(&bytes);
+        Ok(())
     }
 
     fn end(self) -> Result<Self::Ok> {
-        todo!()
+        self.inner.write_all(&self.temp_bytes)?;
+        Ok(())
     }
 }
 
 impl ser::SerializeTupleStruct for &mut Serializer {
     type Ok = ();
-
     type Error = Error;
 
     fn serialize_field<T>(&mut self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        todo!()
+        let bytes = to_bytes(value)?;
+        self.temp_bytes.write_all(&bytes);
+        Ok(())
     }
 
     fn end(self) -> Result<Self::Ok> {
-        todo!()
+        self.inner.write_all(&self.temp_bytes)?;
+        Ok(())
     }
 }
 
 impl ser::SerializeTupleVariant for &mut Serializer {
     type Ok = ();
-
     type Error = Error;
 
     fn serialize_field<T>(&mut self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        todo!()
+        let bytes = to_bytes(value)?;
+        self.temp_bytes.write_all(&bytes);
+        Ok(())
     }
 
     fn end(self) -> Result<Self::Ok> {
-        todo!()
+        self.inner.write_all(&self.temp_bytes)?;
+        Ok(())
     }
 }
 
