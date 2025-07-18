@@ -97,7 +97,7 @@ impl Serializer {
 
         let new = &bytes[..len];
 
-        if new.len() != 1 || (1..bytes.len() as u8).contains(&new[0]) {
+        if new.len() != 1 || (1..=bytes.len() as u8).contains(&new[0]) {
             self.inner.write_all(&[new.len() as u8])?;
         }
         self.inner.write_all(new)?;
@@ -180,7 +180,7 @@ impl ser::Serializer for &mut Serializer {
             return Ok(());
         }
         let sign = bits & (1 << 31) != 0;
-        let mantissa = (((bits & (0xff << 23)) >> 23) as i32 - 127) as i8;
+        let mantissa = ((((bits & (0xff << 23)) >> 23) as i32).wrapping_sub(127)) as i8;
         let significand = if sign {
             -(((bits & 0x7fffff).reverse_bits() >> 9) as i32)
         } else {
@@ -202,7 +202,7 @@ impl ser::Serializer for &mut Serializer {
             return Ok(());
         }
         let sign = (bits & (1 << 63)) << 63 != 0;
-        let mantissa = ((((bits & (0x7ff << 52)) >> 52) as i64) - 1023) as i16;
+        let mantissa = ((((bits & (0x7ff << 52)) >> 52) as i64).wrapping_sub(1023)) as i16;
         let significand = if sign {
             -(((bits & 0xfffffffffffff).reverse_bits() >> 12) as i32)
         } else {
@@ -534,15 +534,17 @@ fn integer_test() -> Result<()> {
 
 #[test]
 fn float_test() -> Result<()> {
-    assert_eq!(to_bytes_testing(&5.0f64)?, [0x01, 0x02, 0x02]);
+    assert_eq!(to_bytes_testing(&5.0f64)?, [0x01, 0x02, 0x01, 0x02]);
+    assert_eq!(to_bytes_testing(&3.351951982485649e154f64)?, [0x01, 0x02, 0x02, 0x01, 0x02]);
     assert_eq!(to_bytes_testing(&5.0f32)?, [0x01, 0x02, 0x02]);
     assert_eq!(to_bytes_testing(&-5.0f32)?, [0xfe, 0x02]);
     assert_eq!(to_bytes_testing(&0.5f32)?, [0x00, 0xff]);
     assert_eq!(to_bytes_testing(&0.5f64)?, [0x00, 0xff]);
-    assert_eq!(to_bytes_testing(&0.25f64)?, [0x00, 0xfe]);
+    assert_eq!(to_bytes_testing(&0.25f32)?, [0x00, 0xfe]);
     assert_eq!(to_bytes_testing(&0.25f64)?, [0x00, 0xfe]);
     assert_eq!(to_bytes_testing(&1f32)?, [0x00, 0x00]);
     assert_eq!(to_bytes_testing(&2.0f32)?, [0x00, 0x01]);
+    assert_eq!(to_bytes_testing(&52.0f32)?, [0x05, 0x05]);
     assert_eq!(
         to_bytes_settings(&3.563f32, false, true)?,
         [0x31, 0x08, 0x64, 0x40]
