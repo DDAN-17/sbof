@@ -1,1 +1,4 @@
-/target
+target
+failed_case.json
+failed_case.bin
+deser.json
