@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use crate::{Error, Result};
+use crate::{sign_extend_le, Error, Result};
 
 use serde::{Serialize, ser};
 
@@ -97,7 +97,7 @@ impl Serializer {
 
         let new = &bytes[..len];
 
-        if new.len() != 1 || (1..bytes.len() as u8 / 8).contains(&new[0]) {
+        if new.len() != 1 || (1..bytes.len() as u8).contains(&new[0]) {
             self.inner.write_all(&[new.len() as u8])?;
         }
         self.inner.write_all(new)?;
@@ -189,6 +189,7 @@ impl ser::Serializer for &mut Serializer {
 
         let significand_rep = f32::from_bits(bits & 0x7fffff | 0x3f800000);
         println!("{v}: {significand_rep} * 2^{mantissa}");
+        println!("significand: {significand:b}, mantissa: {mantissa:b}");
 
         significand.serialize(&mut *self)?;
         mantissa.serialize(&mut *self)
@@ -210,6 +211,7 @@ impl ser::Serializer for &mut Serializer {
 
         let significand_rep = f64::from_bits(bits & 0xfffffffffffff | 0x3ff0000000000000);
         println!("{v}: {significand_rep} * 2^{mantissa}");
+        println!("significand: {significand:b}, mantissa: {mantissa:b}");
 
         significand.serialize(&mut *self)?;
         mantissa.serialize(&mut *self)
@@ -504,23 +506,6 @@ impl ser::SerializeTupleVariant for &mut Serializer {
     }
 }
 
-fn sign_extend_le(bytes: &[u8]) -> i128 {
-    if bytes.len() > 16 || bytes.is_empty() {
-        panic!("invalid bytes length {}", bytes.len());
-    }
-    if bytes.len() == 16 {
-        return i128::from_le_bytes(bytes.try_into().unwrap());
-    }
-
-    let sign = bytes.last().unwrap() & 0x80 != 0; // true if negative
-    let sign_byte = if sign { 0xffu8 } else { 0x00u8 };
-
-    let mut vec: Vec<u8> = bytes.to_vec();
-    vec.extend(vec![sign_byte; 16 - bytes.len()]);
-
-    i128::from_le_bytes(vec.try_into().unwrap())
-}
-
 #[test]
 fn char_test() -> Result<()> {
     assert_eq!(to_bytes_testing(&'c')?, b"c");
@@ -534,6 +519,8 @@ fn char_test() -> Result<()> {
 
 #[test]
 fn integer_test() -> Result<()> {
+    assert_eq!(to_bytes_testing(&2i32)?, [0x01, 0x02]);
+    assert_eq!(to_bytes_testing(&2u32)?, [0x01, 0x02]);
     assert_eq!(to_bytes_testing(&5u16)?, [0x05]);
     assert_eq!(to_bytes_testing(&16u16)?, [0x10]);
     assert_eq!(to_bytes_testing(&256u16)?, [0x02, 0x00, 0x01]);
@@ -547,8 +534,8 @@ fn integer_test() -> Result<()> {
 
 #[test]
 fn float_test() -> Result<()> {
-    assert_eq!(to_bytes_testing(&5.0f64)?, [0x02, 0x02]);
-    assert_eq!(to_bytes_testing(&5.0f32)?, [0x02, 0x02]);
+    assert_eq!(to_bytes_testing(&5.0f64)?, [0x01, 0x02, 0x02]);
+    assert_eq!(to_bytes_testing(&5.0f32)?, [0x01, 0x02, 0x02]);
     assert_eq!(to_bytes_testing(&-5.0f32)?, [0xfe, 0x02]);
     assert_eq!(to_bytes_testing(&0.5f32)?, [0x00, 0xff]);
     assert_eq!(to_bytes_testing(&0.5f64)?, [0x00, 0xff]);
@@ -562,10 +549,4 @@ fn float_test() -> Result<()> {
     );
 
     Ok(())
-}
-
-#[test]
-fn sign_extend_test() {
-    assert_eq!(sign_extend_le((5u8).to_le_bytes().as_slice()), 5);
-    assert_eq!(sign_extend_le((-25i8).to_le_bytes().as_slice()), -25);
 }
