@@ -1,6 +1,6 @@
 use std::{error, fmt::Display};
 
-use serde::{ser, de};
+use serde::{de, ser};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -8,7 +8,15 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     Custom(String),
     Io(std::io::Error),
-    Unsupported,
+    Unsupported {
+        name: &'static str,
+        reason: &'static str,
+    },
+    EOF,
+    InvalidValue {
+        value: u8,
+        reason: &'static str,
+    },
 }
 
 impl From<std::io::Error> for Error {
@@ -19,14 +27,18 @@ impl From<std::io::Error> for Error {
 
 impl ser::Error for Error {
     fn custom<T>(msg: T) -> Self
-    where T:std::fmt::Display {
+    where
+        T: std::fmt::Display,
+    {
         Self::Custom(msg.to_string())
     }
 }
 
 impl de::Error for Error {
     fn custom<T>(msg: T) -> Self
-    where T:std::fmt::Display {
+    where
+        T: std::fmt::Display,
+    {
         Self::Custom(msg.to_string())
     }
 }
@@ -37,8 +49,12 @@ impl Display for Error {
 
         match self {
             Custom(str) => write!(f, "{str}"),
-            Unsupported => write!(f, "unsupported function called"),
+            Unsupported { name, reason } => {
+                write!(f, "unsupported function {name} called. {reason}")
+            }
             Io(e) => write!(f, "{e}"),
+            EOF => write!(f, "unexpected eof"),
+            InvalidValue { value, reason } => write!(f, "invalid value {value}, {reason}"),
         }
     }
 }
