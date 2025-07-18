@@ -26,7 +26,7 @@ Floating point values are stored by a transformed version of their mantissa and 
 If the "High Precision Floats" feature flag is enabled, the previous paragraph can be ignored. Instead, the floats are serialized as standard IEEE 754 floats. This should only be enabled if high precision floats are being serialized regularly, since this turns off what is supposed to be an optimization. In this case, "high precision" means about 3 decimal places.
 
 ## Characters
-Characters are stored in a similar format to unsigned 32-bit integers. First, the character is converted to UTF-8. Then, the UTF-8 bytes are stored in order, prefixed by their length in bytes. However, the length can be ommitted if the length of the character is 1 byte, and the value of the character's byte is not in between 1 and 4 (inclusive).
+Characters are stored as unsigned 32-bit integers, through UTF-32.
 
 ## Strings
 Strings are stored as length prefixed UTF-8. The length is stored as an infinitely sized unsigned integer[^1].
