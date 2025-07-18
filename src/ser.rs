@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use crate::{sign_extend_le, Error, Result};
+use crate::{Error, Result, sign_extend_le};
 
 use serde::{Serialize, ser};
 
@@ -535,7 +535,10 @@ fn integer_test() -> Result<()> {
 #[test]
 fn float_test() -> Result<()> {
     assert_eq!(to_bytes_testing(&5.0f64)?, [0x01, 0x02, 0x01, 0x02]);
-    assert_eq!(to_bytes_testing(&3.351951982485649e154f64)?, [0x01, 0x02, 0x02, 0x01, 0x02]);
+    assert_eq!(
+        to_bytes_testing(&3.351951982485649e154f64)?,
+        [0x01, 0x02, 0x02, 0x01, 0x02]
+    );
     assert_eq!(to_bytes_testing(&5.0f32)?, [0x01, 0x02, 0x02]);
     assert_eq!(to_bytes_testing(&-5.0f32)?, [0xfe, 0x02]);
     assert_eq!(to_bytes_testing(&0.5f32)?, [0x00, 0xff]);
