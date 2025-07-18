@@ -1,6 +1,12 @@
 # SBOF: Small Binary Object Format
 SBOF is a binary object format that I made because I didn't like any of the other formats. It's not self-describing, so you can't deserialize data without knowing what format it is. This repo is an implementation of SBOF for rust, using serde. If the following specification is too confusing, feel free to open an issue (or a PR if you think you know what it is, and feel like fixing it), and I will respond as soon as possible.
 
+## Header
+Every SBOF stream starts with a small header. The header consists of a single unsigned byte of the version. The version this specification specificies is version 0. Following the version is another unsiged byte, this time for "feature flags." Since the creator of SBOF is indecicive, she decided to leave some decisions up to the user. Currently, the feature flags (from LSB to MSB in the feature flag byte), are as follows:
+### High Precision Floats
+The "High Precision Floats" feature flags turns off SBOF encoding for floating point values. This should be enabled if floats more precise than 2 decimal places are being serialized regularly.
+
+
 ## Boolean
 `true: 01`<br>
 `false: 00`
@@ -15,7 +21,9 @@ Unsigned integers larger than 8 bits are stored as little-endian variable-length
 Signed integers larger than 8 bits are stored in a similar way to unsigned integers. However, the number can only be made smaller by removing trailing zeros if the number is positive. If the number is negative, trailing 0xff's should be removed instead.
 
 ## Floating Point Values
-Floating point values are stored by a transformed version of their mantissa and significand. In order to serialize a number to SBOF, convert the mantissa to a signed two's complement format (size dependant on mantissa size), and reverse the bits of the significand. Make sure to negate th significand based on the sign bit. Then, store the significand, then mantissa, in that order. The sizes of the values are dependant on the size of the values in the floating point value format you are using. For IEEE 754 Single-Precision values, the mantissa is a signed 8-bit integer, and the significand is a signed 32 bit integer. For IEEE 754 Double-Precision values, the mantissa is a signed 16-bit integer, and the significand is a signed 64-bit integer.
+Floating point values are stored by a transformed version of their mantissa and significand. In order to serialize a number to SBOF, convert the mantissa to a signed two's complement format (size dependant on mantissa size), and reverse the bits of the significand. Make sure to negate th significand based on the sign bit. Then, store the significand, then mantissa, in that order. The sizes of the values are dependant on the size of the values in the floating point value format you are using. For IEEE 754 Single-Precision values, the mantissa is a signed 8-bit integer, and the significand is a signed 32 bit integer. For IEEE 754 Double-Precision values, the mantissa is a signed 16-bit integer, and the significand is a signed 64-bit integer.<br><br>
+
+If the "High Precision Floats" feature flag is enabled, the previous paragraph can be ignored. Instead, the floats are serialized as standard IEEE 754 floats. This should only be enabled if high precision floats are being serialized regularly, since this turns off what is supposed to be an optimization. In this case, "high precision" means about 3 decimal places.
 
 ## Characters
 Characters are stored in a similar format to unsigned 32-bit integers. First, the character is converted to UTF-8. Then, the UTF-8 bytes are stored in order, prefixed by their length in bytes. However, the length can be ommitted if the length of the character is 1 byte, and the value of the character's byte is not in between 1 and 4 (inclusive).

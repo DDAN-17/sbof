@@ -1,5 +1,7 @@
+pub mod de;
 pub mod error;
 pub mod ser;
-pub mod de;
+
+mod buf;
 
 pub use error::{Error, Result};
