@@ -104,6 +104,20 @@ impl Serializer {
 
         Ok(())
     }
+
+    fn serialize_usize(&mut self, val: usize) -> Result<()> {
+        let bytes = val.to_le_bytes();
+
+        let mut end = bytes.len();
+        while end > 1 && bytes[end - 1] == 0 {
+            end -= 1;
+        }
+
+        let slice = &bytes[..end];
+        self.inner.write_all(&[end as u8])?;
+        self.inner.write_all(slice)?;
+        Ok(())
+    }
 }
 
 impl ser::Serializer for &mut Serializer {
@@ -187,10 +201,6 @@ impl ser::Serializer for &mut Serializer {
             ((bits & 0x7fffff).reverse_bits() >> 9) as i32
         };
 
-        let significand_rep = f32::from_bits(bits & 0x7fffff | 0x3f800000);
-        println!("{v}: {significand_rep} * 2^{mantissa}");
-        println!("significand: {significand:b}, mantissa: {mantissa:b}");
-
         significand.serialize(&mut *self)?;
         mantissa.serialize(&mut *self)
     }
@@ -204,34 +214,17 @@ impl ser::Serializer for &mut Serializer {
         let sign = (bits & (1 << 63)) << 63 != 0;
         let mantissa = ((((bits & (0x7ff << 52)) >> 52) as i64).wrapping_sub(1023)) as i16;
         let significand = if sign {
-            -(((bits & 0xfffffffffffff).reverse_bits() >> 12) as i32)
+            -(((bits & 0xfffffffffffff).reverse_bits() >> 12) as i64)
         } else {
-            ((bits & 0xfffffffffffff).reverse_bits() >> 12) as i32
+            ((bits & 0xfffffffffffff).reverse_bits() >> 12) as i64
         };
-
-        let significand_rep = f64::from_bits(bits & 0xfffffffffffff | 0x3ff0000000000000);
-        println!("{v}: {significand_rep} * 2^{mantissa}");
-        println!("significand: {significand:b}, mantissa: {mantissa:b}");
 
         significand.serialize(&mut *self)?;
         mantissa.serialize(&mut *self)
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok> {
-        let len = v.len_utf8() as u8;
-        if len == 1 {
-            let byte = v as u8;
-            if (1..=4).contains(&byte) {
-                self.inner.write_all(&[1, byte])?; // 01 XX
-            } else {
-                self.inner.write_all(&[byte])?; // XX
-            }
-        } else {
-            let mut buf = vec![len; len as usize + 1];
-            v.encode_utf8(&mut buf[1..]);
-            self.inner.write_all(&buf[..])?; // ll XX XX XX XX
-        }
-        Ok(())
+        self.serialize_u32(v as u32)
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
@@ -239,7 +232,7 @@ impl ser::Serializer for &mut Serializer {
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok> {
-        v.len().serialize(&mut *self)?;
+        self.serialize_usize(v.len())?;
         self.inner.write_all(v)?;
         Ok(())
     }
@@ -383,7 +376,7 @@ impl ser::SerializeMap for &mut Serializer {
 
     fn end(self) -> Result<Self::Ok> {
         let len = self.temp_len;
-        len.serialize(&mut *self)?;
+        self.serialize_usize(len)?;
         self.inner.write_all(&self.temp_bytes)?;
         Ok(())
     }
@@ -405,7 +398,7 @@ impl ser::SerializeSeq for &mut Serializer {
 
     fn end(self) -> Result<Self::Ok> {
         let len = self.temp_len;
-        len.serialize(&mut *self)?;
+        self.serialize_usize(len)?;
         self.inner.write_all(&self.temp_bytes)?;
         Ok(())
     }
@@ -511,9 +504,9 @@ fn char_test() -> Result<()> {
     assert_eq!(to_bytes_testing(&'c')?, b"c");
     assert_eq!(to_bytes_testing(&'\0')?, b"\0");
     assert_eq!(to_bytes_testing(&'\x01')?, b"\x01\x01");
-    assert_eq!(to_bytes_testing(&'ß')?, "\x02ß".as_bytes());
-    assert_eq!(to_bytes_testing(&'ℝ')?, "\x03ℝ".as_bytes());
-    assert_eq!(to_bytes_testing(&'💣')?, "\x04💣".as_bytes());
+    assert_eq!(to_bytes_testing(&'ß')?, [0xdf]);
+    assert_eq!(to_bytes_testing(&'ℝ')?, [0x02, 0x1d, 0x21]);
+    assert_eq!(to_bytes_testing(&'💣')?, [0x03, 0xa3, 0xf4, 0x01]);
     Ok(())
 }
 
@@ -539,6 +532,7 @@ fn float_test() -> Result<()> {
         to_bytes_testing(&3.351951982485649e154f64)?,
         [0x01, 0x02, 0x02, 0x01, 0x02]
     );
+    assert_eq!(to_bytes_testing(&0.2313554863585172f64)?, [0x07, 0x9b, 0x0b, 0xe7, 0xbd, 0xe2, 0x0d, 0x0f, 0xfd]);
     assert_eq!(to_bytes_testing(&5.0f32)?, [0x01, 0x02, 0x02]);
     assert_eq!(to_bytes_testing(&-5.0f32)?, [0xfe, 0x02]);
     assert_eq!(to_bytes_testing(&0.5f32)?, [0x00, 0xff]);

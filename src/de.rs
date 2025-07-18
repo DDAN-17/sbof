@@ -3,7 +3,8 @@ use std::io::Read;
 use crate::{Error, Result, buf::Buf, sign_extend_le};
 
 use serde::{
-    de::{self, value::U32Deserializer, IntoDeserializer}, Deserialize
+    Deserialize,
+    de::{self, IntoDeserializer, value::U32Deserializer},
 };
 
 pub fn from_bytes<'de, T: Deserialize<'de>>(bytes: &'de [u8]) -> Result<T> {
@@ -46,7 +47,6 @@ pub struct Deserializer<'de> {
 impl<'de> Deserializer<'de> {
     fn deserialize_int(&mut self, max_length: u8) -> Result<i128> {
         let byte = self.input.read_u8()?;
-        println!("byte: {byte:08b}");
         if byte > max_length || byte == 0 {
             Ok(i8::from_le_bytes([byte]) as i128)
         } else {
@@ -185,7 +185,6 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
         }
 
         let significand = self.deserialize_int(4)? as i32;
-        println!("raw significand: {significand:b}");
         let (sign, significand) = if significand.is_negative() {
             (1u32, ((-significand << 9).reverse_bits()) as u32)
         } else {
@@ -193,9 +192,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
         };
         let mantissa = (self.input.read_i8()?.wrapping_add(127)) as u8;
 
-        println!("significand: {significand:b}, mantissa: {mantissa:b}");
         let bits = significand | (mantissa as u32) << 23 | sign << 31;
-        println!("bits: {bits:032b}");
 
         visitor.visit_f32(f32::from_bits(bits))
     }
@@ -212,17 +209,14 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
 
         let significand = self.deserialize_int(8)? as i64;
         let mantissa = self.deserialize_int(2)? as i16;
-        println!("raw significand: {significand:b}, raw mantissa: {mantissa:b}");
         let (sign, significand) = if significand.is_negative() {
             (1u64, ((-significand << 12).reverse_bits()) as u64)
         } else {
             (0u64, (significand << 12).reverse_bits() as u64)
         };
-        let mantissa = (mantissa.wrapping_add(1023)) as u16;
+        let mantissa = (mantissa.wrapping_add(1023) & 0x7ff) as u16;
 
-        println!("significand: {significand:b}, mantissa: {mantissa:b}");
         let bits = significand | (mantissa as u64) << 52 | sign << 63;
-        println!("bits: {bits:064b}");
 
         visitor.visit_f64(f64::from_bits(bits))
     }
@@ -535,11 +529,7 @@ impl<'a, 'de> de::VariantAccess<'de> for &'a mut SbofEnum<'a, 'de> {
         visitor.visit_seq(SbofSeq::new(&mut *self.de, len))
     }
 
-    fn struct_variant<V>(
-        self,
-        fields: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value>
+    fn struct_variant<V>(self, fields: &'static [&'static str], visitor: V) -> Result<V::Value>
     where
         V: de::Visitor<'de>,
     {
@@ -583,6 +573,7 @@ fn float_test() -> Result<()> {
     assert_eq!(from_bytes_testing::<f64>(&[0x00, 0x01, 0x01])?, 2.0);
     assert_eq!(from_bytes_testing::<f64>(&[0x00, 0x00])?, 1.0);
     assert_eq!(from_bytes_testing::<f64>(&[0x01, 0x05, 0x05])?, 52.0);
+    assert_eq!(from_bytes_testing::<f64>(&[0x07, 0x9b, 0x0b, 0xe7, 0xbd, 0xe2, 0x0d, 0x0f, 0xfd])?, 0.2313554863585172f64);
 
     Ok(())
 }
@@ -602,13 +593,22 @@ fn enum_test() -> Result<()> {
     }
 
     assert_eq!(from_bytes_testing::<Testing>(&[0x01, 0x03])?, Testing::Unit);
-    assert_eq!(from_bytes_testing::<Testing>(&[0x01, 0x02, 0x00, 0x05, 0xff])?, Testing::Struct {
-        field1: 0,
-        field2: 5,
-        field3: -1,
-    });
-    assert_eq!(from_bytes_testing::<Testing>(&[0x01, 0x01, 0x32])?, Testing::Two(50));
-    assert_eq!(from_bytes_testing::<Testing>(&[0x00, 0x03, 0x01, 0x00, 0x00])?, Testing::One(1));
+    assert_eq!(
+        from_bytes_testing::<Testing>(&[0x01, 0x02, 0x00, 0x05, 0xff])?,
+        Testing::Struct {
+            field1: 0,
+            field2: 5,
+            field3: -1,
+        }
+    );
+    assert_eq!(
+        from_bytes_testing::<Testing>(&[0x01, 0x01, 0x32])?,
+        Testing::Two(50)
+    );
+    assert_eq!(
+        from_bytes_testing::<Testing>(&[0x00, 0x03, 0x01, 0x00, 0x00])?,
+        Testing::One(1)
+    );
 
     Ok(())
 }

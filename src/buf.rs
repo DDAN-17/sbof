@@ -1,6 +1,4 @@
-use std::{
-    io::{self, Read},
-};
+use std::io::{self, Read};
 
 use crate::{Error, Result};
 
