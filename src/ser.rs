@@ -5,18 +5,76 @@ use crate::{Error, Result};
 use serde::{ser, Serialize};
 
 pub fn to_bytes<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>> {
-    let mut serializer = Serializer::default();
+    let mut serializer = Serializer::new(false);
+
+    value.serialize(&mut serializer)?;
+
+    
+    Ok(serializer.inner)
+}
+
+/// No header
+fn to_bytes_with_settings<T: Serialize + ?Sized>(settings: &Serializer, value: &T) -> Result<Vec<u8>> {
+    let mut serializer = settings.dup();
 
     value.serialize(&mut serializer)?;
 
     Ok(serializer.inner)
 }
 
-#[derive(Default)]
 pub struct Serializer {
     inner: Vec<u8>,
     temp_bytes: Vec<u8>,
     temp_len: usize,
+    high_precision: bool,
+}
+
+impl Serializer {
+    fn new(high_precision: bool) -> Self {
+        Serializer {
+            inner: Vec::new(),
+            temp_bytes: Vec::new(),
+            temp_len: 0,
+            high_precision,
+        }
+    }
+
+    fn dup(&self) -> Self {
+        Self::new(self.high_precision)
+    }
+
+    fn serialize_uint(&mut self, bytes: &[u8]) -> Result<()> {
+        let mut end = bytes.len();
+        while end > 1 && bytes[end - 1] == 0 {
+            end -= 1;
+        }
+
+        let slice = &bytes[..end];
+        if slice.len() != 1 || (1..=bytes.len() as u8).contains(&slice[0]) {
+            println!("len");
+            self.inner.write_all(&[end as u8])?;
+        }
+        self.inner.write_all(slice)?;
+
+        Ok(())
+    }
+
+    fn serialize_int(&mut self, bytes: &[u8], v: i64) -> Result<()> {
+        let mut len = bytes.len();
+
+        while len > 1 && sign_extend_le(&bytes[..len - 1]) == v {
+            len -= 1;
+        }
+
+        let new = &bytes[..len];
+
+        if new.len() != 1 || (1..bytes.len() as u8 / 8).contains(&new[0]) {
+            self.inner.write_all(&[new.len() as u8])?;
+        }
+        self.inner.write_all(new)?;
+
+        Ok(())
+    }
 }
 
 impl ser::Serializer for &mut Serializer {
@@ -47,160 +105,75 @@ impl ser::Serializer for &mut Serializer {
     }
 
     fn serialize_u16(self, v: u16) -> Result<Self::Ok> {
-        let bytes = v.to_be_bytes();
-        let mut new: Vec<u8> = bytes.into_iter().skip_while(|x| *x == 0).collect();
-        if new.len() != 1 || (1..bytes.len() as u8 / 8).contains(&new[0]) {
-            self.inner.write_all(&[new.len() as u8])?;
-        }
-        new.reverse();
-        self.inner.write_all(&new)?;
-
-        Ok(())
+        let bytes = v.to_le_bytes();
+        self.serialize_uint(bytes.as_slice())
     }
 
     fn serialize_i16(self, v: i16) -> Result<Self::Ok> {
         let bytes = v.to_le_bytes();
-        let mut len = bytes.len();
-
-        // Find minimal byte length that preserves sign and value
-        while len > 1 && sign_extend_le(&bytes[..len - 1]) == v as i64 {
-            len -= 1;
-        }
-
-        let new = &bytes[..len];
-
-        if new.len() != 1 || (1..bytes.len() as u8 / 8).contains(&new[0]) {
-            self.inner.write_all(&[new.len() as u8])?;
-        }
-        self.inner.write_all(new)?;
-
-        Ok(())
+        self.serialize_int(&bytes, v as i64)
     }
 
     fn serialize_u32(self, v: u32) -> Result<Self::Ok> {
         let bytes = v.to_le_bytes();
-        let mut new_bytes = Vec::with_capacity(bytes.len());
-        for i in bytes {
-            if i != 0x00 {
-                new_bytes.push(i);
-            } else {
-                break;
-            }
-        }
-
-        if new_bytes.len() == 1 && new_bytes[0] != 0 && new_bytes[0] as usize > bytes.len() {
-            self.inner.write_all(&new_bytes)?;
-        } else {
-            self.inner.write_all(&[new_bytes.len() as u8])?;
-            self.inner.write_all(&new_bytes)?;
-        }
-
-        Ok(())
+        self.serialize_uint(bytes.as_slice())
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok> {
         let bytes = v.to_le_bytes();
-        let mut new_bytes = Vec::with_capacity(bytes.len());
-        for i in bytes {
-            if i != 0x00 {
-                new_bytes.push(i);
-            } else {
-                break;
-            }
-        }
-
-        if new_bytes.len() == 1 && new_bytes[0] != 0 && new_bytes[0] as usize > bytes.len() {
-            self.inner.write_all(&new_bytes)?;
-        } else {
-            self.inner.write_all(&[new_bytes.len() as u8])?;
-            self.inner.write_all(&new_bytes)?;
-        }
-
-        Ok(())
+        self.serialize_int(&bytes, v as i64)
     }
 
     fn serialize_u64(self, v: u64) -> Result<Self::Ok> {
         let bytes = v.to_le_bytes();
-        let mut new_bytes = Vec::with_capacity(bytes.len());
-        for i in bytes {
-            if i != 0x00 {
-                new_bytes.push(i);
-            } else {
-                break;
-            }
-        }
-
-        if new_bytes.len() == 1 && new_bytes[0] != 0 && new_bytes[0] as usize > bytes.len() {
-            self.inner.write_all(&new_bytes)?;
-        } else {
-            self.inner.write_all(&[new_bytes.len() as u8])?;
-            self.inner.write_all(&new_bytes)?;
-        }
-
-        Ok(())
+        self.serialize_uint(bytes.as_slice())
     }
 
     fn serialize_i64(self, v: i64) -> Result<Self::Ok> {
         let bytes = v.to_le_bytes();
-        let mut new_bytes = Vec::with_capacity(bytes.len());
-        for i in bytes {
-            if i != 0x00 {
-                new_bytes.push(i);
-            } else {
-                break;
-            }
-        }
-
-        if new_bytes.len() == 1 && new_bytes[0] != 0 && new_bytes[0] as usize > bytes.len() {
-            self.inner.write_all(&new_bytes)?;
-        } else {
-            self.inner.write_all(&[new_bytes.len() as u8])?;
-            self.inner.write_all(&new_bytes)?;
-        }
-
-        Ok(())
+        self.serialize_int(&bytes, v)
     }
 
     fn serialize_f32(self, v: f32) -> Result<Self::Ok> {
-        let bytes = v.to_le_bytes();
-        let mut new_bytes = Vec::with_capacity(bytes.len());
-        for i in bytes {
-            if i != 0x00 {
-                new_bytes.push(i);
-            } else {
-                break;
-            }
+        let bits = v.to_bits();
+        if self.high_precision {
+            self.inner.write_all(&bits.to_le_bytes())?;
+            return Ok(());
         }
-
-        if new_bytes.len() == 1 && new_bytes[0] != 0 && new_bytes[0] as usize > bytes.len() {
-            self.inner.write_all(&new_bytes)?;
+        let sign = bits & (1 << 31) != 0;
+        let mantissa = (((bits & (0xff << 23)) >> 23) as i32 - 127) as i8;
+        let significand = if sign {
+            -(((bits & 0x7fffff).reverse_bits() >> 9) as i32)
         } else {
-            self.inner.write_all(&[new_bytes.len() as u8])?;
-            self.inner.write_all(&new_bytes)?;
-        }
+            ((bits & 0x7fffff).reverse_bits() >> 9) as i32
+        };
 
-        Ok(())
+        let significand_rep = f32::from_bits(bits & 0x7fffff | 0x3f800000);
+        println!("{v}: {significand_rep} * 2^{mantissa}");
+
+        significand.serialize(&mut *self)?;
+        mantissa.serialize(&mut *self)
     }
 
     fn serialize_f64(self, v: f64) -> Result<Self::Ok> {
-        let bytes = v.to_le_bytes();
-        let mut new_bytes = Vec::with_capacity(bytes.len());
-        for i in bytes {
-            if i != 0x00 {
-                new_bytes.push(i);
-            } else {
-                break;
-            }
+        let bits = v.to_bits();
+        if self.high_precision {
+            self.inner.write_all(&bits.to_le_bytes())?;
+            return Ok(());
         }
-
-        if new_bytes.len() == 1 && new_bytes[0] != 0 && new_bytes[0] as usize > bytes.len() {
-            self.inner.write_all(&new_bytes)?;
+        let sign =(bits & (1 << 63)) << 63 != 0;
+        let mantissa = ((((bits & (0x7ff << 52)) >> 52) as i64) - 1023) as i16;
+        let significand = if sign {
+            -(((bits & 0xfffffffffffff).reverse_bits() >> 12) as i32)
         } else {
-            self.inner.write_all(&[new_bytes.len() as u8])?;
-            self.inner.write_all(&new_bytes)?;
-        }
+            ((bits & 0xfffffffffffff).reverse_bits() >> 12) as i32
+        };
 
-        Ok(())
+        let significand_rep = f64::from_bits(bits & 0xfffffffffffff | 0x3ff0000000000000);
+        println!("{v}: {significand_rep} * 2^{mantissa}");
+
+        significand.serialize(&mut *self)?;
+        mantissa.serialize(&mut *self)
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok> {
@@ -237,7 +210,7 @@ impl ser::Serializer for &mut Serializer {
     fn serialize_some<T>(self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + serde::Serialize {
-        let bytes = to_bytes(value)?;
+        let bytes = to_bytes_with_settings(self, value)?;
         if bytes.starts_with(&[0x00]) || bytes.starts_with(&[0x01]) {
             true.serialize(&mut *self)?;
         }
@@ -356,7 +329,7 @@ impl ser::SerializeMap for &mut Serializer {
     fn serialize_key<T>(&mut self, key: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        let bytes = to_bytes(key)?;
+        let bytes = to_bytes_with_settings(self, key)?;
         self.temp_len += 1;
         self.temp_bytes.write_all(&bytes)?;
         Ok(())
@@ -365,7 +338,7 @@ impl ser::SerializeMap for &mut Serializer {
     fn serialize_value<T>(&mut self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        let bytes = to_bytes(value)?;
+        let bytes = to_bytes_with_settings(self, value)?;
         self.temp_bytes.write_all(&bytes)?;
         Ok(())
     }
@@ -385,7 +358,7 @@ impl ser::SerializeSeq for &mut Serializer {
     fn serialize_element<T>(&mut self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        let bytes = to_bytes(value)?;
+        let bytes = to_bytes_with_settings(self, value)?;
         self.temp_len += 1;
         self.temp_bytes.write_all(&bytes)?;
         Ok(())
@@ -406,7 +379,7 @@ impl ser::SerializeStruct for &mut Serializer {
     fn serialize_field<T>(&mut self, _: &'static str, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        let bytes = to_bytes(value)?;
+        let bytes = to_bytes_with_settings(self, value)?;
         self.temp_bytes.write_all(&bytes)?;
         Ok(())
     }
@@ -424,7 +397,7 @@ impl ser::SerializeStructVariant for &mut Serializer {
     fn serialize_field<T>(&mut self, _: &'static str, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        let bytes = to_bytes(value)?;
+        let bytes = to_bytes_with_settings(self, value)?;
         self.temp_bytes.write_all(&bytes)?;
         Ok(())
     }
@@ -442,7 +415,7 @@ impl ser::SerializeTuple for &mut Serializer {
     fn serialize_element<T>(&mut self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        let bytes = to_bytes(value)?;
+        let bytes = to_bytes_with_settings(self, value)?;
         self.temp_bytes.write_all(&bytes)?;
         Ok(())
     }
@@ -460,7 +433,7 @@ impl ser::SerializeTupleStruct for &mut Serializer {
     fn serialize_field<T>(&mut self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        let bytes = to_bytes(value)?;
+        let bytes = to_bytes_with_settings(self, value)?;
         self.temp_bytes.write_all(&bytes)?;
         Ok(())
     }
@@ -478,7 +451,7 @@ impl ser::SerializeTupleVariant for &mut Serializer {
     fn serialize_field<T>(&mut self, value: &T) -> Result<Self::Ok>
     where
         T: ?Sized + ser::Serialize {
-        let bytes = to_bytes(value)?;
+        let bytes = to_bytes_with_settings(self, value)?;
         self.temp_bytes.write_all(&bytes)?;
         Ok(())
     }
@@ -509,6 +482,24 @@ fn integer_test() -> Result<()> {
     assert_eq!(to_bytes(&-16i16)?, [0xf0]);
     assert_eq!(to_bytes(&256i16)?, [0x02, 0x00, 0x01]);
     assert_eq!(to_bytes(&-256i16)?, [0x02, 0x00, 0xff]);
+
+    Ok(())
+}
+
+#[test]
+fn float_test() -> Result<()> {
+    to_bytes(&2.0f32)?;
+
+    assert_eq!(to_bytes(&5.0f64)?, [0x02, 0x02]);
+    assert_eq!(to_bytes(&5.0f32)?, [0x02, 0x02]);
+    assert_eq!(to_bytes(&-5.0f32)?, [0xfe, 0x02]);
+    assert_eq!(to_bytes(&0.5f32)?, [0x00, 0xff]);
+    assert_eq!(to_bytes(&0.5f64)?, [0x00, 0xff]);
+    assert_eq!(to_bytes(&0.25f64)?, [0x00, 0xfe]);
+    assert_eq!(to_bytes(&0.25f64)?, [0x00, 0xfe]);
+    assert_eq!(to_bytes(&1f32)?, [0x00, 0x00]);
+    assert_eq!(to_bytes(&3.563f32)?, [0x00, 0x00]);
+    panic!();
 
     Ok(())
 }
