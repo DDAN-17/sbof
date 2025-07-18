@@ -1,4 +1,6 @@
-use std::io::{self, Read};
+use std::{
+    io::{self, Read},
+};
 
 use crate::{Error, Result};
 
@@ -49,105 +51,21 @@ impl<'src> Buf<'src> {
         Ok(i8::from_le_bytes(buf))
     }
 
-    pub fn read_u16(&mut self) -> Result<u16> {
-        let res = self.peek_u16();
-        self.cursor += 1;
-        res
-    }
-
-    pub fn peek_u16(&mut self) -> Result<u16> {
-        let mut buf = [0; 2];
-        Self::handle_error(self.src[self.cursor..].as_ref().read_exact(&mut buf))?;
-        Ok(u16::from_le_bytes(buf))
-    }
-
-    pub fn read_i16(&mut self) -> Result<i16> {
-        let res = self.peek_i16();
-        self.cursor += 1;
-        res
-    }
-
-    pub fn peek_i16(&mut self) -> Result<i16> {
-        let mut buf = [0; 2];
-        Self::handle_error(self.src[self.cursor..].as_ref().read_exact(&mut buf))?;
-        Ok(i16::from_le_bytes(buf))
-    }
-
-    pub fn read_u32(&mut self) -> Result<u32> {
-        let res = self.peek_u32();
-        self.cursor += 1;
-        res
-    }
-
-    pub fn peek_u32(&mut self) -> Result<u32> {
-        let mut buf = [0; 4];
-        Self::handle_error(self.src[self.cursor..].as_ref().read_exact(&mut buf))?;
-        Ok(u32::from_le_bytes(buf))
-    }
-
-    pub fn read_i32(&mut self) -> Result<i32> {
-        let res = self.peek_i32();
-        self.cursor += 1;
-        res
-    }
-
-    pub fn peek_i32(&mut self) -> Result<i32> {
-        let mut buf = [0; 4];
-        Self::handle_error(self.src[self.cursor..].as_ref().read_exact(&mut buf))?;
-        Ok(i32::from_le_bytes(buf))
-    }
-
-    pub fn read_u64(&mut self) -> Result<u64> {
-        let res = self.peek_u64();
-        self.cursor += 1;
-        res
-    }
-
-    pub fn peek_u64(&mut self) -> Result<u64> {
-        let mut buf = [0; 8];
-        Self::handle_error(self.src[self.cursor..].as_ref().read_exact(&mut buf))?;
-        Ok(u64::from_le_bytes(buf))
-    }
-
-    pub fn read_i64(&mut self) -> Result<i64> {
-        let res = self.peek_i64();
-        self.cursor += 1;
-        res
-    }
-
-    pub fn peek_i64(&mut self) -> Result<i64> {
-        let mut buf = [0; 8];
-        Self::handle_error(self.src[self.cursor..].as_ref().read_exact(&mut buf))?;
-        Ok(i64::from_le_bytes(buf))
-    }
-
-    pub fn read_u128(&mut self) -> Result<u128> {
-        let res = self.peek_u128();
-        self.cursor += 1;
-        res
-    }
-
-    pub fn peek_u128(&mut self) -> Result<u128> {
-        let mut buf = [0; 16];
-        Self::handle_error(self.src[self.cursor..].as_ref().read_exact(&mut buf))?;
-        Ok(u128::from_le_bytes(buf))
-    }
-
-    pub fn read_i128(&mut self) -> Result<i128> {
-        let res = self.peek_i128();
-        self.cursor += 1;
-        res
-    }
-
-    pub fn peek_i128(&mut self) -> Result<i128> {
-        let mut buf = [0; 16];
-        Self::handle_error(self.src[self.cursor..].as_ref().read_exact(&mut buf))?;
-        Ok(i128::from_le_bytes(buf))
+    pub fn read_slice(&mut self, len: usize) -> Result<&[u8]> {
+        if self.src.len() - self.cursor < len {
+            Err(Error::EOF)
+        } else {
+            Ok(&self.src[self.cursor..self.cursor + len])
+        }
     }
 }
 
 impl<'src> Read for Buf<'src> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        
+        let res = self.src[self.cursor..].as_ref().read(buf);
+        if let Ok(n) = res {
+            self.cursor += n;
+        }
+        res
     }
 }

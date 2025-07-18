@@ -14,9 +14,11 @@ pub enum Error {
     },
     EOF,
     InvalidValue {
-        value: u8,
+        value: u32,
         reason: &'static str,
     },
+    UnsupportedVersion,
+    InvalidUTF8,
 }
 
 impl From<std::io::Error> for Error {
@@ -55,6 +57,8 @@ impl Display for Error {
             Io(e) => write!(f, "{e}"),
             EOF => write!(f, "unexpected eof"),
             InvalidValue { value, reason } => write!(f, "invalid value {value}, {reason}"),
+            UnsupportedVersion => write!(f, "tried to deserialize unsupported version of SBOF"),
+            InvalidUTF8 => write!(f, "tried to parse invalid UTF-8"),
         }
     }
 }
