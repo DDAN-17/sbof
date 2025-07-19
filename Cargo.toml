@@ -8,6 +8,8 @@ documentation = "https://docs.rs/sbof"
 repository = "https://github.com/DDAN-17/sbof"
 keywords = ["binary", "serde", "serialization", "deserialization", "format"]
 categories = ["encoding"]
+license = "MIT"
+license-file = "LICENSE"
 readme = "README.md"
 
 [dependencies]
