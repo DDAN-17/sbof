@@ -573,7 +573,10 @@ fn float_test() -> Result<()> {
     assert_eq!(from_bytes_testing::<f64>(&[0x00, 0x01, 0x01])?, 2.0);
     assert_eq!(from_bytes_testing::<f64>(&[0x00, 0x00])?, 1.0);
     assert_eq!(from_bytes_testing::<f64>(&[0x01, 0x05, 0x05])?, 52.0);
-    assert_eq!(from_bytes_testing::<f64>(&[0x07, 0x9b, 0x0b, 0xe7, 0xbd, 0xe2, 0x0d, 0x0f, 0xfd])?, 0.2313554863585172f64);
+    assert_eq!(
+        from_bytes_testing::<f64>(&[0x07, 0x9b, 0x0b, 0xe7, 0xbd, 0xe2, 0x0d, 0x0f, 0xfd])?,
+        0.2313554863585172f64
+    );
 
     Ok(())
 }

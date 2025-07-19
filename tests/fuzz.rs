@@ -1,4 +1,9 @@
-use std::{fs, io::{stdout, ErrorKind, Write}, panic::{catch_unwind, resume_unwind}, time::{Duration, SystemTime}};
+use std::{
+    fs,
+    io::{ErrorKind, Write, stdout},
+    panic::{catch_unwind, resume_unwind},
+    time::{Duration, SystemTime},
+};
 
 use rand::{prelude::*, random, rng};
 use sbof::{de::from_bytes, ser::to_bytes, *};
@@ -61,7 +66,9 @@ impl TestStruct {
                     field2: rng.random(),
                 },
             },
-            string: (0..random::<u8>() as usize).map(|_| rng.random::<char>()).collect(),
+            string: (0..random::<u8>() as usize)
+                .map(|_| rng.random::<char>())
+                .collect(),
         }
     }
 }
@@ -73,7 +80,9 @@ fn run_repeat() -> Result<()> {
 
     loop {
         all()?;
-        let duration = SystemTime::now().duration_since(start).expect("system time error");
+        let duration = SystemTime::now()
+            .duration_since(start)
+            .expect("system time error");
         if duration >= QUIT_DURATION {
             break;
         }
@@ -86,7 +95,8 @@ fn all() -> Result<()> {
     let test_struct = if fs::exists("failed_case.json")? {
         println!("loading failed_case.json...");
         let str = fs::read_to_string("failed_case.json")?;
-        let test_struct: TestStruct = serde_json::from_str(&str).expect("could not parse failed_case.json");
+        let test_struct: TestStruct =
+            serde_json::from_str(&str).expect("could not parse failed_case.json");
         println!("done\n");
         test_struct
     } else {
@@ -95,9 +105,7 @@ fn all() -> Result<()> {
 
     let bytes = to_bytes(&test_struct)?;
     println!("serialization complete");
-    let unwind = catch_unwind(|| {
-        from_bytes::<TestStruct>(&bytes)
-    });
+    let unwind = catch_unwind(|| from_bytes::<TestStruct>(&bytes));
     let deser = match unwind {
         Err(e) => {
             failed_case(&test_struct, &bytes)?;
@@ -113,7 +121,10 @@ fn all() -> Result<()> {
 
     if test_struct != deser {
         failed_case_eq(&test_struct, &deser, &bytes)?;
-        return Err(Error::Io(std::io::Error::new(ErrorKind::InvalidData, "failed")));
+        return Err(Error::Io(std::io::Error::new(
+            ErrorKind::InvalidData,
+            "failed",
+        )));
     } else {
         println!("success!");
         let _ = fs::remove_file("failed_case.bin");
@@ -126,7 +137,10 @@ fn all() -> Result<()> {
 
 fn failed_case(test_struct: &TestStruct, bytes: &[u8]) -> Result<()> {
     println!("\n\nfound bad input: {test_struct:?}");
-    fs::write("failed_case.json", serde_json::to_string_pretty(test_struct).expect("failed to serialize to JSON"))?;
+    fs::write(
+        "failed_case.json",
+        serde_json::to_string_pretty(test_struct).expect("failed to serialize to JSON"),
+    )?;
     println!("wrote input to failed_case.json");
     fs::write("failed_case.bin", bytes)?;
     println!("wrote serialized input to failed_case.bin");
@@ -135,11 +149,17 @@ fn failed_case(test_struct: &TestStruct, bytes: &[u8]) -> Result<()> {
 
 fn failed_case_eq(test_struct: &TestStruct, deser: &TestStruct, bytes: &[u8]) -> Result<()> {
     println!("\n\nfound bad input: {test_struct:?}");
-    fs::write("failed_case.json", serde_json::to_string_pretty(test_struct).expect("failed to serialize to JSON"))?;
+    fs::write(
+        "failed_case.json",
+        serde_json::to_string_pretty(test_struct).expect("failed to serialize to JSON"),
+    )?;
     println!("wrote input to failed_case.json");
     fs::write("failed_case.bin", bytes)?;
     println!("wrote serialized input to failed_case.bin");
-    fs::write("deser.json", serde_json::to_string_pretty(deser).expect("failed to serialize to JSON"))?;
+    fs::write(
+        "deser.json",
+        serde_json::to_string_pretty(deser).expect("failed to serialize to JSON"),
+    )?;
     println!("wrote deserialized output to deser.json");
     println!("use `diff failed_case.json deser.json` to find differences");
     Ok(())
