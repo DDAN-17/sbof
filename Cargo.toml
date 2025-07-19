@@ -3,6 +3,12 @@ name = "sbof"
 description = "Small Binary Object Format"
 version = "0.1.0"
 edition = "2024"
+authors = ["DDAN"]
+documentation = "https://docs.rs/sbof"
+repository = "https://github.com/DDAN-17/sbof"
+keywords = ["binary", "serde", "serialization", "deserialization", "format"]
+categories = ["encoding"]
+readme = "README.md"
 
 [dependencies]
 serde = {version = "1.0.219"}
