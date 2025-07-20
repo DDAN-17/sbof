@@ -5,6 +5,8 @@ pub mod ser;
 mod buf;
 
 pub use error::{Error, Result};
+pub use ser::{to_bytes, to_bytes_settings};
+pub use de::{from_bytes, from_bytes_settings};
 
 fn sign_extend_le(bytes: &[u8]) -> i128 {
     if bytes.len() > 16 || bytes.is_empty() {
