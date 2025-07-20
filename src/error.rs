@@ -6,18 +6,24 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]
 pub enum Error {
+    /// Custom error created by serde
     Custom(String),
     Io(std::io::Error),
+    /// Produced when an unsupported function is called
     Unsupported {
         name: &'static str,
         reason: &'static str,
     },
+    /// Produced when an unexpected EOF is found
     EOF,
+    /// Produced when an invalid value is found
     InvalidValue {
         value: u32,
         reason: &'static str,
     },
+    /// Produced when an unsupported version of SBOF is attempted to be deserialized
     UnsupportedVersion,
+    /// Produced when an invalid UTF-8 string is found
     InvalidUTF8,
 }
 

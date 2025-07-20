@@ -4,6 +4,7 @@ use crate::{Error, Result, sign_extend_le};
 
 use serde::{Serialize, ser};
 
+/// Converts a value that implements [`Serialize`] into a Vec<u8> of SBOF data. By default, there is a header, and the "High Precision Floats" feature is disabled.
 pub fn to_bytes<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>> {
     to_bytes_settings(value, true, false)
 }
@@ -14,6 +15,7 @@ fn to_bytes_testing<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>> {
     to_bytes_settings(value, false, false)
 }
 
+/// Converts a value that implements [`Serialize`] into a Vec<u8> of SBOF data, with specific settings.
 pub fn to_bytes_settings<T: Serialize + ?Sized>(
     value: &T,
     header: bool,
@@ -52,6 +54,7 @@ fn to_bytes_with_settings<T: Serialize + ?Sized>(
     Ok(serializer.inner)
 }
 
+/// Implementation of [`serde::Serializer`] for SBOF.
 pub struct Serializer {
     inner: Vec<u8>,
     temp_bytes: Vec<u8>,
