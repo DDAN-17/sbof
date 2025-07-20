@@ -7,6 +7,7 @@ use serde::{
     de::{self, IntoDeserializer, value::U32Deserializer},
 };
 
+/// Converts a byte array of SBOF data into a value that implements [`Deserialize`].
 pub fn from_bytes<'de, T: Deserialize<'de>>(bytes: &'de [u8]) -> Result<T> {
     let version = bytes[0];
     if version > 0 {
@@ -16,6 +17,7 @@ pub fn from_bytes<'de, T: Deserialize<'de>>(bytes: &'de [u8]) -> Result<T> {
     from_bytes_settings(&bytes[2..], version, high_precision)
 }
 
+/// Converts a byte array of SBOF data into a value that implements [`Deserialize`], without using a header.
 pub fn from_bytes_settings<'de, T: Deserialize<'de>>(
     bytes: &'de [u8],
     version: u8,
@@ -35,6 +37,7 @@ fn from_bytes_testing<'de, T: Deserialize<'de>>(bytes: &'de [u8]) -> Result<T> {
     from_bytes_settings(bytes, 0, false)
 }
 
+/// Implementation of [`serde::Deserializer`] for SBOF.
 pub struct Deserializer<'de> {
     input: Buf<'de>,
 
