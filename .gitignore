@@ -2,3 +2,4 @@ target
 failed_case.json
 failed_case.bin
 deser.json
+.DS_Store
