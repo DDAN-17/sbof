@@ -503,6 +503,20 @@ impl ser::SerializeTupleVariant for &mut Serializer {
 }
 
 #[test]
+fn usize_test() -> Result<()> {
+    let mut serializer = Serializer::new(Vec::new(), false);
+    serializer.serialize_usize(256)?;
+    assert_eq!(serializer.inner, [2, 0, 1]);
+    Ok(())
+}
+
+#[test]
+fn vec_test() -> Result<()> {
+    assert_eq!(to_bytes_testing([24, 56].as_slice())?, [1, 2, 24, 56]);
+    Ok(())
+}
+
+#[test]
 fn char_test() -> Result<()> {
     assert_eq!(to_bytes_testing(&'c')?, b"c");
     assert_eq!(to_bytes_testing(&'\0')?, b"\0");

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs,
     io::{ErrorKind, Write, stdout},
     panic::{catch_unwind, resume_unwind},
@@ -33,6 +34,7 @@ struct TestStruct {
     float32: f32,
     float64: f64,
     vector: Vec<u8>,
+    map: HashMap<String, TestEnum>,
     tuple: (u8, u16, u8),
     enumeration: TestEnum,
     string: String,
@@ -56,6 +58,33 @@ impl TestStruct {
             float32: rng.random(),
             float64: rng.random(),
             vector: (0..random::<u8>() as usize).map(|_| rng.random()).collect(),
+            map: {
+                let len = 0..random::<u8>() as usize;
+                let entries = len.clone().map(|_| {
+                    (
+                        {
+                            (0..random::<u8>() as usize)
+                                .map(|_| rng.random::<char>())
+                                .collect::<String>()
+                        },
+                        match random::<u8>() % 4 {
+                            0 => TestEnum::Unit,
+                            1 => TestEnum::Newtype(rng.random()),
+                            2 => TestEnum::Tuple(rng.random(), rng.random()),
+                            _ => TestEnum::Struct {
+                                field1: rng.random(),
+                                field2: rng.random(),
+                            },
+                        },
+                    )
+                });
+
+                let mut map = HashMap::new();
+                for (k, v) in entries {
+                    map.insert(k, v);
+                }
+                map
+            },
             tuple: (rng.random(), rng.random(), rng.random()),
             enumeration: match random::<u8>() % 4 {
                 0 => TestEnum::Unit,
@@ -136,7 +165,7 @@ fn all() -> Result<()> {
 }
 
 fn failed_case(test_struct: &TestStruct, bytes: &[u8]) -> Result<()> {
-    println!("\n\nfound bad input: {test_struct:?}");
+    //println!("\n\nfound bad input: {test_struct:?}");
     fs::write(
         "failed_case.json",
         serde_json::to_string_pretty(test_struct).expect("failed to serialize to JSON"),

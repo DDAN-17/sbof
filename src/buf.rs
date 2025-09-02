@@ -53,7 +53,9 @@ impl<'src> Buf<'src> {
         if self.src.len() - self.cursor < len {
             Err(Error::EOF)
         } else {
-            Ok(&self.src[self.cursor..self.cursor + len])
+            let old = self.cursor;
+            self.cursor += len;
+            Ok(&self.src[old..self.cursor])
         }
     }
 }

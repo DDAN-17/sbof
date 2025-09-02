@@ -31,8 +31,7 @@ pub fn from_bytes_settings<'de, T: Deserialize<'de>>(
     T::deserialize(&mut deserializer)
 }
 
-// Used in testing, obviously
-#[allow(unused)]
+#[cfg(test)]
 fn from_bytes_testing<'de, T: Deserialize<'de>>(bytes: &'de [u8]) -> Result<T> {
     from_bytes_settings(bytes, 0, false)
 }
@@ -43,6 +42,7 @@ pub struct Deserializer<'de> {
 
     #[allow(unused)]
     version: u8,
+
     // Feature flags
     high_precision: bool,
 }
@@ -338,6 +338,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
         V: de::Visitor<'de>,
     {
         let len_left = self.deserialize_uint(u8::MAX)? as usize;
+        println!("{len_left}");
         visitor.visit_map(SbofMap::new(self, len_left))
     }
 
