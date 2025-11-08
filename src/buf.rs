@@ -49,7 +49,7 @@ impl<'src> Buf<'src> {
         Ok(i8::from_le_bytes(buf))
     }
 
-    pub fn read_slice(&mut self, len: usize) -> Result<&[u8]> {
+    pub fn read_slice(&mut self, len: usize) -> Result<&'src [u8]> {
         if self.src.len() - self.cursor < len {
             Err(Error::EOF)
         } else {

@@ -70,7 +70,7 @@ impl<'de> Deserializer<'de> {
         }
     }
 
-    fn deserialize_byte_arr(&mut self) -> Result<&[u8]> {
+    fn deserialize_byte_arr(&mut self) -> Result<&'de [u8]> {
         let len = self.deserialize_uint(u8::MAX)? as usize; // Infinitely sized integer
         self.input.read_slice(len)
     }
@@ -240,7 +240,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
     where
         V: de::Visitor<'de>,
     {
-        visitor.visit_str(
+        visitor.visit_borrowed_str(
             str::from_utf8(self.deserialize_byte_arr()?).map_err(|_| Error::InvalidUTF8)?,
         )
     }
@@ -260,7 +260,7 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
     where
         V: de::Visitor<'de>,
     {
-        visitor.visit_bytes(self.deserialize_byte_arr()?)
+        visitor.visit_borrowed_bytes(self.deserialize_byte_arr()?)
     }
 
     fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value>
