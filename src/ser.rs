@@ -37,8 +37,8 @@ fn generate_header(high_precision: bool) -> Serializer {
     if high_precision {
         feature_flags |= 1 << 0;
     }
-    // Version 0
-    let header = vec![0x00, feature_flags];
+    // Version 1
+    let header = vec![0x01, feature_flags];
     Serializer::new(header, high_precision)
 }
 
@@ -227,7 +227,11 @@ impl ser::Serializer for &mut Serializer {
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok> {
-        self.serialize_u32(v as u32)
+        let mut buf = [0; 4];
+        let str = v.encode_utf8(&mut buf);
+
+        self.inner.write_all(str.as_bytes())?;
+        Ok(())
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok> {
@@ -518,12 +522,12 @@ fn vec_test() -> Result<()> {
 
 #[test]
 fn char_test() -> Result<()> {
-    assert_eq!(to_bytes_testing(&'c')?, b"c");
-    assert_eq!(to_bytes_testing(&'\0')?, b"\0");
-    assert_eq!(to_bytes_testing(&'\x01')?, b"\x01\x01");
-    assert_eq!(to_bytes_testing(&'ß')?, [0xdf]);
-    assert_eq!(to_bytes_testing(&'ℝ')?, [0x02, 0x1d, 0x21]);
-    assert_eq!(to_bytes_testing(&'💣')?, [0x03, 0xa3, 0xf4, 0x01]);
+    assert_eq!(to_bytes_testing(&'c')?, "c".as_bytes());
+    assert_eq!(to_bytes_testing(&'\0')?, "\0".as_bytes());
+    assert_eq!(to_bytes_testing(&'\x01')?, "\x01".as_bytes());
+    assert_eq!(to_bytes_testing(&'ß')?, "ß".as_bytes());
+    assert_eq!(to_bytes_testing(&'ℝ')?, "ℝ".as_bytes());
+    assert_eq!(to_bytes_testing(&'💣')?, "💣".as_bytes());
     Ok(())
 }
 

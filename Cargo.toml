@@ -1,11 +1,11 @@
 [package]
 name = "sbof"
 description = "Small Binary Object Format"
-version = "1.1.1"
+version = "1.2.0"
 edition = "2024"
-authors = ["DDAN"]
+authors = ["Chloe"]
 documentation = "https://docs.rs/sbof"
-repository = "https://github.com/DDAN-17/sbof"
+repository = "https://github.com/akiramusic000/sbof"
 keywords = ["binary", "serde", "serialization", "deserialization", "format"]
 categories = ["encoding"]
 license = "MIT"
@@ -15,6 +15,6 @@ readme = "README.md"
 serde = { version = "1" }
 
 [dev-dependencies]
-serde = {version = "1", features = ["serde_derive"]}
+serde = { version = "1", features = ["serde_derive"] }
 serde_json = "1"
-rand = "0.9.2"
+rand = "0.10.1"

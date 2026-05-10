@@ -10,7 +10,7 @@ use serde::{
 /// Converts a byte array of SBOF data into a value that implements [`Deserialize`].
 pub fn from_bytes<'de, T: Deserialize<'de>>(bytes: &'de [u8]) -> Result<T> {
     let version = bytes[0];
-    if version > 0 {
+    if version > 1 {
         return Err(Error::UnsupportedVersion);
     }
     let high_precision = bytes[1] & (1 << 0) != 0;
@@ -33,7 +33,7 @@ pub fn from_bytes_settings<'de, T: Deserialize<'de>>(
 
 #[cfg(test)]
 fn from_bytes_testing<'de, T: Deserialize<'de>>(bytes: &'de [u8]) -> Result<T> {
-    from_bytes_settings(bytes, 0, false)
+    from_bytes_settings(bytes, 1, false)
 }
 
 /// Implementation of [`serde::Deserializer`] for SBOF.
@@ -228,12 +228,31 @@ impl<'de> de::Deserializer<'de> for &mut Deserializer<'de> {
     where
         V: de::Visitor<'de>,
     {
-        let int = self.deserialize_uint(4)? as u32;
-        let char = char::from_u32(int).ok_or(Error::InvalidValue {
-            value: int,
-            reason: "expected valid character",
-        })?;
-        visitor.visit_char(char)
+        if self.version > 0 {
+            let leading_byte = self.input.peek_u8()?;
+            let len = if (leading_byte & 0x80) == 0x00 {
+                1
+            } else if (leading_byte & 0xE0) == 0xC0 {
+                2
+            } else if (leading_byte & 0xF0) == 0xE0 {
+                3
+            } else if (leading_byte & 0xF8) == 0xF0 {
+                4
+            } else {
+                println!("leading_byte: {leading_byte:x}");
+                return Err(Error::InvalidUTF8);
+            };
+            let str =
+                str::from_utf8(self.input.read_slice(len)?).map_err(|_| Error::InvalidUTF8)?;
+            visitor.visit_char(str.chars().next().unwrap())
+        } else {
+            let int = self.deserialize_uint(4)? as u32;
+            let char = char::from_u32(int).ok_or(Error::InvalidValue {
+                value: int,
+                reason: "expected valid character",
+            })?;
+            visitor.visit_char(char)
+        }
     }
 
     fn deserialize_str<V>(self, visitor: V) -> Result<V::Value>
